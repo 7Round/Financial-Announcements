@@ -5,52 +5,38 @@ TF-IDF + 历史时序特征构建脚本
 1. 全局 TF-IDF 特征（全文，不截断）
 2. 历史价格时序统计特征
 
-输出 features_built.npz，供 07_hybrid_train.py 使用。
+输出 features_built_full.npz，供 07_hybrid_train.py 使用。
 
 用法:
-  python 06b_build_features.py --input mini_train_text.csv
+  python 06b_build_features.py --input train_text_full.csv
 """
 
 import os
 import csv
 import argparse
 import re
+import time
 import warnings
 import numpy as np
 from collections import defaultdict
 
 warnings.filterwarnings("ignore")
 
+csv.field_size_limit(2**31 - 1)
+
 DATA_DIR = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_INPUT = os.path.join(DATA_DIR, "mini_train_text.csv")
-DEFAULT_OUTPUT = os.path.join(DATA_DIR, "features_built.npz")
+DEFAULT_INPUT = os.path.join(DATA_DIR, "train_text_full.csv")
+DEFAULT_OUTPUT = os.path.join(DATA_DIR, "features_built_full.npz")
 
 
 def build_time_series_features(rows: list[dict]) -> np.ndarray:
     """
     构建历史价格时序特征。
-
-    对每只股票，按日期排序后依次计算：
-      price_ma_3  — 过去3日均价
-      price_ma_5  — 过去5日均价
-      price_std_5 — 过去5日价格标准差（波动率）
-      price_mom_1 — 相对于昨日的涨跌幅
-      price_mom_3 — 过去3日累计涨跌幅
-      price_mom_5 — 过去5日累计涨跌幅
-      price_min_5 — 过去5日最低价
-      price_max_5 — 过去5日最高价
-
-    不足 N 天时以 NaN 填充（CatBoost 原生支持 NaN）。
+    对每只股票，按日期排序后依次计算 8 个统计特征。
     """
     n = len(rows)
-    feature_names = [
-        "ma_3", "ma_5", "std_5",
-        "mom_1", "mom_3", "mom_5",
-        "min_5", "max_5",
-    ]
-    features = np.full((n, len(feature_names)), np.nan, dtype=np.float32)
+    features = np.full((n, 8), np.nan, dtype=np.float32)
 
-    # 按 stkcd 分组
     groups = defaultdict(list)
     for i, row in enumerate(rows):
         groups[row["stkcd"]].append(i)
@@ -59,38 +45,33 @@ def build_time_series_features(rows: list[dict]) -> np.ndarray:
         if len(indices) < 2:
             continue
 
-        # 按日期排序
         sorted_idx = sorted(indices, key=lambda i: rows[i]["date"])
         prices = np.array([float(rows[i]["clpr"]) for i in sorted_idx])
 
         for pos, idx in enumerate(sorted_idx):
             if pos == 0:
-                continue  # 第1条无历史
+                continue
 
-            p_t = prices[pos]      # 当天价格
-            p_p1 = prices[pos - 1]  # 昨天价格
-
+            p_t = prices[pos]
+            p_p1 = prices[pos - 1]
             f = features[idx]
 
-            # mom_1: 相对于昨日涨跌幅
-            f[3] = (p_t - p_p1) / p_p1
+            f[3] = (p_t - p_p1) / p_p1  # mom_1
 
             if pos >= 2:
-                # ma_3
-                f[0] = prices[pos - 2: pos + 1].mean()
-                # mom_3
-                f[4] = (p_t - prices[pos - 2]) / prices[pos - 2]
+                f[0] = prices[pos - 2: pos + 1].mean()   # ma_3
+                f[4] = (p_t - prices[pos - 2]) / prices[pos - 2]  # mom_3
 
             if pos >= 4:
                 window = prices[pos - 4: pos + 1]
-                f[1] = window.mean()
-                f[2] = window.std()
-                f[5] = (p_t - prices[pos - 4]) / prices[pos - 4]
-                f[6] = window.min()
-                f[7] = window.max()
+                f[1] = window.mean()     # ma_5
+                f[2] = window.std()      # std_5
+                f[5] = (p_t - prices[pos - 4]) / prices[pos - 4]  # mom_5
+                f[6] = window.min()      # min_5
+                f[7] = window.max()      # max_5
 
     print(f"  -> 时序特征维度: {features.shape[1]}")
-    for i, name in enumerate(feature_names):
+    for i, name in enumerate(["ma_3", "ma_5", "std_5", "mom_1", "mom_3", "mom_5", "min_5", "max_5"]):
         nan_count = np.isnan(features[:, i]).sum()
         print(f"     {name}: {nan_count} 个 NaN ({nan_count/n*100:.1f}%)")
     return features
@@ -106,6 +87,8 @@ def main():
     print("=" * 60)
     print("特征构建: TF-IDF + 时序特征")
     print("=" * 60)
+
+    start_time = time.time()
 
     # 1. 加载数据
     print(f"\n[1/4] 加载数据: {args.input}")
@@ -130,7 +113,9 @@ def main():
         min_df=2,
     )
     tfidf_emb = vectorizer.fit_transform(texts).toarray()
-    print(f"  -> TF-IDF 维度: {tfidf_emb.shape}")
+    elapsed = time.time() - start_time
+    print(f"  -> TF-IDF 维度: {tfidf_emb.shape}, 用时 {elapsed:.1f}s")
+    print(f"  -> TF-IDF 稠密矩阵内存: {tfidf_emb.nbytes / 1024 / 1024:.1f} MB")
 
     # 3. 时序特征
     print(f"\n[3/4] 构建历史时序特征...")
@@ -147,8 +132,12 @@ def main():
         dates=dates,
         n_samples=len(rows),
     )
-    print(f"  -> 大小: {os.path.getsize(args.output) / 1024:.1f} KB")
-    print(f"\n下一步: python 07_hybrid_train.py\n")
+    file_size = os.path.getsize(args.output) / 1024 / 1024
+    print(f"  -> 大小: {file_size:.1f} MB")
+
+    total_elapsed = time.time() - start_time
+    print(f"\n总用时: {total_elapsed:.1f}s")
+    print(f"下一步: python 07_hybrid_train.py\n")
 
 
 if __name__ == "__main__":

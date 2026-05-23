@@ -19,7 +19,8 @@ import fitz  # PyMuPDF
 
 DATA_DIR = os.path.dirname(os.path.abspath(__file__))
 ALIGNED_CSV = os.path.join(DATA_DIR, "train_aligned.csv")
-OUTPUT_CSV = os.path.join(DATA_DIR, "mini_train_text.csv")
+OUTPUT_CSV = os.path.join(DATA_DIR, "mini_train_text.csv")  # 默认 500 条
+OUTPUT_CSV_ALL = os.path.join(DATA_DIR, "train_text_full.csv")  # --all 模式
 
 
 def extract_pdf_text(pdf_path: str) -> str:
@@ -104,8 +105,10 @@ def main():
     if args.all:
         target_rows = matched_rows
         tag = "全部"
+        output_path = OUTPUT_CSV_ALL
     else:
         target_rows = matched_rows[:args.max_samples]
+        output_path = OUTPUT_CSV
         tag = f"前 {len(target_rows)}"
 
     print(f"  -> 本次提取: {tag} 条\n")
@@ -146,9 +149,9 @@ def main():
           f"(成功 {success}, 失败 {fail}, 总用时 {elapsed:.1f}s)")
 
     # 保存
-    print(f"\n[3/3] 保存结果: {OUTPUT_CSV}")
+    print(f"\n[3/3] 保存结果: {output_path}")
     fieldnames = ["uuid", "stkcd", "date", "clpr", "label", "ann_text"]
-    with open(OUTPUT_CSV, "w", encoding="utf-8", newline="") as f:
+    with open(output_path, "w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(results)
@@ -162,8 +165,8 @@ def main():
     print(f"  最长:      {max(lengths)} 字符")
     print(f"  空文本数:  {sum(1 for l in lengths if l == 0)}")
 
-    print(f"\n=> 完成! 输出文件: {OUTPUT_CSV}")
-    print(f"   可用下一步训练: python 03_train_baseline.py\n")
+    print(f"\n=> 完成! 输出文件: {output_path}")
+    print(f"   可用下一步训练: python 06_sliding_finbert.py --input {output_path}\n")
 
 
 if __name__ == "__main__":
