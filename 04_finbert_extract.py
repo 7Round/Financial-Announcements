@@ -21,9 +21,13 @@ import numpy as np
 
 warnings.filterwarnings("ignore")
 
+# 如果需要使用 HuggingFace 镜像站（国内加速），取消下面这行的注释
+# os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
+
 DATA_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_INPUT = os.path.join(DATA_DIR, "mini_train_text.csv")
-DEFAULT_OUTPUT = os.path.join(DATA_DIR, "finbert_vectors.npz")
+DEFAULT_OUTPUT = os.path.join(DATA_DIR, "finbert_vectors.npz")  # 通用BERT版
+FINBERT_OUTPUT = os.path.join(DATA_DIR, "finbert_fin_vectors.npz")  # 金融FinBERT版
 
 
 def load_data(csv_path: str) -> list[dict]:
@@ -34,12 +38,21 @@ def load_data(csv_path: str) -> list[dict]:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", default=DEFAULT_INPUT)
-    parser.add_argument("--output", default=DEFAULT_OUTPUT)
-    parser.add_argument("--model-name", default="luhua/chinese_pretrain_mrc_macbert_large",
-                        help="FinBERT 模型名称，默认为中文金融预训练模型")
+    parser.add_argument("--output", default=None,
+                        help="输出路径，默认根据模型名自动生成")
+    parser.add_argument("--model-name", default="yiyanghkust/finbert-tone-chinese",
+
+                        help="FinBERT 模型名称")
     parser.add_argument("--max-length", type=int, default=512)
     parser.add_argument("--batch-size", type=int, default=32)
     args = parser.parse_args()
+
+    # 自动确定输出文件名
+    if args.output is None:
+        if "finbert" in args.model_name.lower():
+            args.output = FINBERT_OUTPUT
+        else:
+            args.output = DEFAULT_OUTPUT
 
     print("=" * 60)
     print("FinBERT 文本向量提取")
