@@ -1,0 +1,22 @@
+# 数据集（大文件）
+dataset/
+*.zip
+
+# 生成的数据文件
+train_aligned.csv
+test_aligned.csv
+mini_train_text.csv
+train_text_full.csv
+unmatched_samples.txt
+
+# Python
+__pycache__/
+*.pyc
+.env
+
+# IDE
+.idea/
+.vscode/
+
+# git
+.git/
