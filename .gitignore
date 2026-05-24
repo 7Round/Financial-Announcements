@@ -8,6 +8,11 @@ test_aligned.csv
 mini_train_text.csv
 train_text_full.csv
 unmatched_samples.txt
+*.npz
+sentiment_by_date.csv
+sentiment_detail.csv
+sentiment_*.txt
+*.xlsx
 
 # Python
 __pycache__/

@@ -16,8 +16,8 @@ import numpy as np
 warnings.filterwarnings("ignore")
 
 DATA_DIR = os.path.dirname(os.path.abspath(__file__))
-FINBERT_VEC = os.path.join(DATA_DIR, "sliding_finbert.npz")
-FEATURES = os.path.join(DATA_DIR, "features_built.npz")
+FINBERT_VEC = os.path.join(DATA_DIR, "sliding_finbert_full.npz")
+FEATURES = os.path.join(DATA_DIR, "features_built_full.npz")
 
 
 def load_npz(path: str, label: str):
